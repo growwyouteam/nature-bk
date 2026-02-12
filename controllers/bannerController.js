@@ -6,13 +6,6 @@ const Banner = require('../models/Banner');
 exports.getBanners = async (req, res) => {
     try {
         const banners = await Banner.find({ isActive: true });
-        // If no banners in DB, return default local ones for demo
-        if (banners.length === 0) {
-            return res.json([
-                { _id: '1', title: 'Welcome to Nature', image: '/banners/first.jpeg', link: '/products' },
-                { _id: '2', title: 'New Arrivals', image: '/banners/second.jpeg', link: '/products' }
-            ]);
-        }
         res.json(banners);
     } catch (err) {
         console.error(err);
@@ -40,6 +33,10 @@ exports.createBanner = async (req, res) => {
 // @access  Private/Admin
 exports.deleteBanner = async (req, res) => {
     try {
+        const mongoose = require('mongoose');
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ msg: 'Invalid Banner ID' });
+        }
         const banner = await Banner.findById(req.params.id);
         if (banner) {
             await banner.deleteOne();
