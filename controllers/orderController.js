@@ -70,7 +70,6 @@ exports.addOrderItems = async (req, res) => {
             await currentUser.save();
         }
 
-        // Create commission entry if order was referred
         if (createdOrder.referredBy) {
             const partner = await User.findById(createdOrder.referredBy);
 
@@ -97,6 +96,24 @@ exports.addOrderItems = async (req, res) => {
                 await createdOrder.save();
             }
         }
+
+        // Notify Admins
+        const Notification = require('../models/Notification');
+        const admins = await User.find({ role: 'admin' });
+
+        const notifications = admins.map(admin => ({
+            recipient: admin._id,
+            type: 'order',
+            title: 'New Order Placed',
+            message: `Order #${createdOrder._id.toString().slice(-6)} placed by ${req.user.name || 'User'}`,
+            relatedId: createdOrder._id
+        }));
+
+        if (notifications.length > 0) {
+            await Notification.insertMany(notifications);
+        }
+
+
 
         res.status(201).json(createdOrder);
     }

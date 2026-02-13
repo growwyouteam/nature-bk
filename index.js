@@ -38,6 +38,7 @@ app.use('/api/offers', require('./routes/offers'));
 app.use('/api/pincodes', require('./routes/pincodes'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/purchases', require('./routes/purchases'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Basic Route
 app.get('/', (req, res) => {

@@ -3,38 +3,33 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 
-// Set storage engine
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        // Save directly to client/public/uploads for simple local serving
-        // Adjust path based on your folder structure relative to server/routes
-        cb(null, '../client/public/uploads/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'banner-' + Date.now() + path.extname(file.originalname));
-    }
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Check file type
-function checkFileType(file, cb) {
-    const filetypes = /jpeg|jpg|png|gif|webp/;
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = filetypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-        return cb(null, true);
-    } else {
-        cb('Error: Images Only!');
-    }
-}
+// Set up Cloudinary storage
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'nature-app/banners', // Folder in Cloudinary
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        public_id: (req, file) => 'banner-' + Date.now(), // Custom filename
+    },
+});
 
 // Init upload
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5000000 }, // 5MB
-    fileFilter: function (req, file, cb) {
-        checkFileType(file, cb);
-    }
+    limits: { fileSize: 5000000 } // 5MB
 }).single('image');
 
 // @route   POST /api/upload
@@ -52,8 +47,8 @@ router.post('/', (req, res) => {
             return res.status(400).json({ msg: 'No file uploaded' });
         }
 
-        // Return path relative to public folder
-        const filePath = `/uploads/${req.file.filename}`;
+        // Return Cloudinary URL
+        const filePath = req.file.path; // Multer-storage-cloudinary puts URL in path
         res.json({ filePath });
     });
 });

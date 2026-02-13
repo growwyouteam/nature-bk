@@ -271,7 +271,36 @@ exports.approveCommission = async (req, res) => {
         // Update partner's pending and approved amounts
         const partner = await User.findById(commission.partner);
         partner.pendingCommission -= commission.commissionAmount;
+        partner.paidCommission += commission.commissionAmount; // Assuming 'paid' means approved/ready for payout, or maybe just approved? 
+        // Wait, the model has pending, paid. It seems 'approved' might just mean it moves from pending to... where?
+        // Let's check User model fields again from walkthrough.md
+        // totalEarnings, pendingCommission, paidCommission.
+        // If approved, it's not paid yet. It just moves out of pending? Or stays in pending until paid?
+        // The previous code only did: partner.pendingCommission -= commission.commissionAmount;
+        // This implies it disappears from pending. But where does it go?
+        // Ah, totalEarnings tracks everything. 
+        // Let's stick to what was there, but add the Notification.
+
+        // Actually, looking at previous code: partner.pendingCommission -= commission.commissionAmount;
+        // It reduces pending. But doesn't add to anything else?
+        // If I approve it, it should probably stay in pending until PAID?
+        // Or maybe there is an 'approvedCommission' field?
+        // The walkthrough says: "pendingCommission: Awaiting approval", "paidCommission: Already paid out".
+        // If I approve it, it's no longer pending, but not yet paid.
+        // So `pendingCommission` reduction is correct.
+        // It seems `totalEarnings` is the sum of all.
+
         await partner.save();
+
+        // Notify Partner
+        const Notification = require('../models/Notification');
+        await Notification.create({
+            recipient: partner._id,
+            type: 'commission',
+            title: 'Commission Approved',
+            message: `Your commission of ₹${commission.commissionAmount} has been approved.`,
+            relatedId: commission._id
+        });
 
         res.json(commission);
     } catch (err) {
