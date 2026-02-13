@@ -35,6 +35,7 @@ app.use('/api/categories', require('./routes/categories'));
 app.use('/api/ebooks', require('./routes/ebooks'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/offers', require('./routes/offers'));
+app.use('/api/payment', require('./routes/paymentRoutes')); // Payment Routes
 app.use('/api/pincodes', require('./routes/pincodes'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/purchases', require('./routes/purchases'));
