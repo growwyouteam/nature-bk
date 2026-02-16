@@ -64,10 +64,24 @@ const registerPartner = async (req, res) => {
 // @access  Private (Partner only)
 const getPartnerDashboard = async (req, res) => {
     try {
-        const partnerId = req.user._id;
+        const partnerId = req.user.id;
+        console.log(`[Dashboard] Request for Partner ID: ${partnerId}`);
 
         // Get partner details
         const partner = await User.findById(partnerId).select('-password');
+        console.log(`[Dashboard] User Check: ${partner ? 'Found' : 'Not Found'}`);
+
+        if (!partner) {
+            console.log('[Dashboard] 404: Partner Not Found in DB');
+            return res.status(404).json({ msg: 'Partner profile not found' });
+        }
+
+        // Auto-generate referral code if missing (lazy migration)
+        if (!partner.referralCode) {
+            const referralCode = await generateUniqueReferralCode(partner.name);
+            partner.referralCode = referralCode;
+            await partner.save();
+        }
 
         // Get all orders referred by this partner
         const referredOrders = await Order.find({ referredBy: partnerId })
@@ -83,10 +97,10 @@ const getPartnerDashboard = async (req, res) => {
         const stats = {
             totalReferrals: referredOrders.length,
             totalOrders: referredOrders.length,
-            totalEarnings: partner.totalEarnings,
-            pendingCommission: partner.pendingCommission,
-            paidCommission: partner.paidCommission,
-            commissionRate: partner.commissionRate
+            totalEarnings: partner.totalEarnings || 0,
+            pendingCommission: partner.pendingCommission || 0,
+            paidCommission: partner.paidCommission || 0,
+            commissionRate: partner.commissionRate || 0
         };
 
         res.json({
@@ -101,7 +115,7 @@ const getPartnerDashboard = async (req, res) => {
             commissions
         });
     } catch (error) {
-        console.error(error);
+        console.error("Partner Dashboard Error:", error);
         res.status(500).json({ msg: 'Server error', error: error.message });
     }
 };
@@ -111,10 +125,21 @@ const getPartnerDashboard = async (req, res) => {
 // @access  Private (Partner only)
 const getReferralLink = async (req, res) => {
     try {
-        const partner = await User.findById(req.user._id);
+        const partner = await User.findById(req.user.id);
+
+        if (!partner) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
 
         if (!partner.isPartner) {
             return res.status(403).json({ msg: 'Not authorized as partner' });
+        }
+
+        // Auto-generate referral code if missing
+        if (!partner.referralCode) {
+            const referralCode = await generateUniqueReferralCode(partner.name);
+            partner.referralCode = referralCode;
+            await partner.save();
         }
 
         const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -123,10 +148,10 @@ const getReferralLink = async (req, res) => {
         res.json({
             referralCode: partner.referralCode,
             referralLink,
-            commissionRate: partner.commissionRate
+            commissionRate: partner.commissionRate || 0
         });
     } catch (error) {
-        console.error(error);
+        console.error("Referral Link Error:", error);
         res.status(500).json({ msg: 'Server error', error: error.message });
     }
 };

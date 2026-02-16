@@ -7,6 +7,11 @@ const {
     getReferralLink
 } = require('../controllers/partnerController');
 
+console.log("Partner Routes Loaded");
+
+// Test Route
+router.get('/test', (req, res) => res.json({ msg: "Partner Route Working" }));
+
 // @route   POST /api/partners/register
 router.post('/register', registerPartner);
 

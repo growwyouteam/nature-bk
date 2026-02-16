@@ -16,6 +16,12 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
+// Debug Middleware
+app.use((req, res, next) => {
+    console.log(`[Request] ${req.method} ${req.url}`);
+    next();
+});
+
 // Database Connection
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
@@ -37,7 +43,10 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/offers', require('./routes/offers'));
 app.use('/api/payment', require('./routes/paymentRoutes')); // Payment Routes
 app.use('/api/pincodes', require('./routes/pincodes'));
-app.use('/api/partners', require('./routes/partners'));
+const partnerRoutes = require('./routes/partners');
+console.log('Partner Routes Type:', typeof partnerRoutes);
+app.use('/api/partners', partnerRoutes);
+app.get('/api/partners/test-inline', (req, res) => res.json({ msg: 'Inline Route Works' }));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/notifications', require('./routes/notifications'));
 
@@ -50,6 +59,7 @@ app.get('/', (req, res) => {
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        console.log('Routes mounted: /api/partners');
     });
 }
 
