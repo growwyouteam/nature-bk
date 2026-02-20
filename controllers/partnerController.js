@@ -65,14 +65,11 @@ const registerPartner = async (req, res) => {
 const getPartnerDashboard = async (req, res) => {
     try {
         const partnerId = req.user.id;
-        console.log(`[Dashboard] Request for Partner ID: ${partnerId}`);
 
         // Get partner details
         const partner = await User.findById(partnerId).select('-password');
-        console.log(`[Dashboard] User Check: ${partner ? 'Found' : 'Not Found'}`);
 
         if (!partner) {
-            console.log('[Dashboard] 404: Partner Not Found in DB');
             return res.status(404).json({ msg: 'Partner profile not found' });
         }
 
@@ -142,7 +139,7 @@ const getReferralLink = async (req, res) => {
             await partner.save();
         }
 
-        const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        const baseUrl = process.env.CLIENT_URL || 'https://naturebridge.store';
         const referralLink = `${baseUrl}?ref=${partner.referralCode}`;
 
         res.json({

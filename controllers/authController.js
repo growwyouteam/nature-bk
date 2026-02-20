@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 // Register User
 exports.registerUser = async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, email, password, referralCode } = req.body;
 
     try {
         let user = await User.findOne({ email });
@@ -12,10 +12,16 @@ exports.registerUser = async (req, res) => {
             return res.status(400).json({ msg: 'User already exists' });
         }
 
+        let referrer = null;
+        if (referralCode) {
+            referrer = await User.findOne({ referralCode });
+        }
+
         user = new User({
             name,
             email,
-            password
+            password,
+            referredBy: referrer ? referrer._id : null
         });
 
         // Password hashing is handled by pre('save') middleware in User model

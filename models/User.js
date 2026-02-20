@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
     totalEarnings: { type: Number, default: 0 }, // Total commission earned
     pendingCommission: { type: Number, default: 0 }, // Pending approval
     paidCommission: { type: Number, default: 0 }, // Already paid out
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Who referred this user
 
     // Shopping Data
     wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
