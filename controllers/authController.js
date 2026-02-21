@@ -115,3 +115,23 @@ exports.getUserProfile = async (req, res) => {
         res.status(500).send('Server error');
     }
 };
+
+// Validate Referral Code and get referrer name
+exports.validateReferralCode = async (req, res) => {
+    try {
+        const { code } = req.params;
+        const referrer = await User.findOne({ referralCode: code, isPartner: true });
+
+        if (!referrer) {
+            return res.status(404).json({ msg: 'Invalid referral code' });
+        }
+
+        res.json({
+            name: referrer.name,
+            code: referrer.referralCode
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+};

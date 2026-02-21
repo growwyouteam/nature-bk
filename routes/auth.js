@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { registerUser, loginUser, getUserProfile } = require('../controllers/authController');
+const { registerUser, loginUser, getUserProfile, validateReferralCode } = require('../controllers/authController');
 
 // @route   POST api/auth/register
 // @desc    Register user
@@ -17,5 +17,10 @@ router.post('/login', loginUser);
 // @desc    Get user data
 // @access  Private
 router.get('/user', auth, getUserProfile);
+
+// @route   GET api/auth/validate-referral/:code
+// @desc    Check referral code and get referrer info
+// @access  Public
+router.get('/validate-referral/:code', validateReferralCode);
 
 module.exports = router;
