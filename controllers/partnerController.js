@@ -80,6 +80,11 @@ const getPartnerDashboard = async (req, res) => {
             await partner.save();
         }
 
+        // Get all users referred by this partner
+        const referredUsers = await User.find({ referredBy: partnerId })
+            .select('name email createdAt')
+            .sort({ createdAt: -1 });
+
         // Get all orders referred by this partner
         const referredOrders = await Order.find({ referredBy: partnerId })
             .populate('user', 'name email')
@@ -92,7 +97,7 @@ const getPartnerDashboard = async (req, res) => {
 
         // Calculate stats
         const stats = {
-            totalReferrals: referredOrders.length,
+            totalReferrals: referredUsers.length,
             totalOrders: referredOrders.length,
             totalEarnings: partner.totalEarnings || 0,
             pendingCommission: partner.pendingCommission || 0,
@@ -108,6 +113,7 @@ const getPartnerDashboard = async (req, res) => {
                 phone: partner.phone
             },
             stats,
+            referredUsers,
             referredOrders,
             commissions
         });
