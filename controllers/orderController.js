@@ -35,10 +35,17 @@ exports.addOrderItems = async (req, res) => {
         // Check if referral code is provided and valid
         if (referralCode) {
             const partner = await User.findOne({ referralCode, isPartner: true });
-
             if (partner) {
                 orderData.referredBy = partner._id;
                 orderData.referralCode = referralCode;
+            }
+        }
+
+        // Fallback: if no referral code sent, check if the user was originally referred by a partner
+        if (!orderData.referredBy) {
+            const orderingUser = await User.findById(req.user.id);
+            if (orderingUser && orderingUser.referredBy) {
+                orderData.referredBy = orderingUser.referredBy;
             }
         }
 

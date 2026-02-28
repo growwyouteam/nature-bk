@@ -13,10 +13,11 @@ router.post('/register', registerUser);
 // @access  Public
 router.post('/login', loginUser);
 
-// @route   GET api/auth/user
+// @route   GET api/auth/user or api/auth/me
 // @desc    Get user data
 // @access  Private
 router.get('/user', auth, getUserProfile);
+router.get('/me', auth, getUserProfile);
 
 // @route   GET api/auth/validate-referral/:code
 // @desc    Check referral code and get referrer info
