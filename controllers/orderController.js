@@ -21,7 +21,27 @@ exports.addOrderItems = async (req, res) => {
     if (orderItems && orderItems.length === 0) {
         return res.status(400).json({ msg: 'No order items' });
     } else {
+        // Generate a random 10-12 digit string for orderId (Flipkart style: OD1234567890)
+        const generateOrderId = () => {
+            const randomNum = Math.floor(Math.random() * 9000000000) + 1000000000; // 10 digit random number
+            return `OD${randomNum}`;
+        };
+
+        let uniqueOrderId = generateOrderId();
+        let isUnique = false;
+
+        // Ensure uniqueness
+        while (!isUnique) {
+            const existingOrder = await Order.findOne({ orderId: uniqueOrderId });
+            if (!existingOrder) {
+                isUnique = true;
+            } else {
+                uniqueOrderId = generateOrderId();
+            }
+        }
+
         const orderData = {
+            orderId: uniqueOrderId,
             orderItems,
             user: req.user.id,
             shippingAddress,
@@ -126,11 +146,15 @@ exports.addOrderItems = async (req, res) => {
     }
 };
 
-// @desc    Get order by ID
+// @desc    Get order by ID or orderId
 // @route   GET /api/orders/:id
 // @access  Private
 exports.getOrderById = async (req, res) => {
-    const order = await Order.findById(req.params.id).populate('user', 'name email');
+    // Check if the id is a standard MongoDB ObjectId or our custom orderId (OD...)
+    const isObjectId = req.params.id.match(/^[0-9a-fA-F]{24}$/);
+    const query = isObjectId ? { _id: req.params.id } : { orderId: req.params.id };
+
+    const order = await Order.findOne(query).populate('user', 'name email');
 
     if (order) {
         if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
