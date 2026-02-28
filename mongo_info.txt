@@ -1,0 +1,2 @@
+ac-trf3pwg-shard-00-02.sprol5t.mongodb.net:27017,ac-trf3pwg-shard-00-01.sprol5t.mongodb.net:27017,ac-trf3pwg-shard-00-00.sprol5t.mongodb.net:27017
+[["authSource=admin&replicaSet=atlas-11qbap-shard-0"]]
