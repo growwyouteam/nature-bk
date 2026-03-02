@@ -21,9 +21,9 @@ exports.addOrderItems = async (req, res) => {
     if (orderItems && orderItems.length === 0) {
         return res.status(400).json({ msg: 'No order items' });
     } else {
-        // Generate a random 10-12 digit string for orderId (Flipkart style: OD1234567890)
+        // Generate a short 4-digit Order ID (e.g. OD3555)
         const generateOrderId = () => {
-            const randomNum = Math.floor(Math.random() * 9000000000) + 1000000000; // 10 digit random number
+            const randomNum = Math.floor(Math.random() * 9000) + 1000; // 4 digit random number
             return `OD${randomNum}`;
         };
 
@@ -228,56 +228,142 @@ exports.updateOrderToDelivered = async (req, res) => {
 // @route   GET /api/orders/:id/invoice
 // @access  Private
 exports.getOrderInvoice = async (req, res) => {
-    const order = await Order.findById(req.params.id).populate('user', 'name email');
+    try {
+        const isObjectId = req.params.id.match(/^[0-9a-fA-F]{24}$/);
+        const query = isObjectId ? { _id: req.params.id } : { orderId: req.params.id };
+        const order = await Order.findOne(query).populate('user', 'name email');
 
-    if (!order) {
-        return res.status(404).json({ msg: 'Order not found' });
+        if (!order) return res.status(404).json({ msg: 'Order not found' });
+        if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin')
+            return res.status(401).json({ msg: 'Not authorized' });
+
+        const doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: true });
+        const displayOrderId = order.orderId || order._id.toString();
+        const filename = `invoice-${displayOrderId}.pdf`;
+        res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-type', 'application/pdf');
+        doc.pipe(res);
+
+        const W = 595;
+        const M = 45;
+        const CW = W - M * 2;
+        const cur = (v) => `Rs. ${parseFloat(v || 0).toFixed(2)}`;
+
+        // ── HEADER ─────────────────────────────────────────────
+        doc.rect(0, 0, W, 80).fill('#1a3c2e');
+
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
+            .text('NATURE WAY OF LIFE', M, 18, { lineBreak: false });
+        doc.font('Helvetica').fontSize(9).fillColor('#b0d9bc')
+            .text('naturebridge.store', M, 44, { lineBreak: false });
+
+        // "INVOICE" — wide enough to avoid wrapping
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff')
+            .text('INVOICE', W - M - 110, 26, { width: 110, align: 'right', lineBreak: false });
+
+        // ── META SECTION ───────────────────────────────────────
+        const metaY = 100;
+        const midX = M + CW / 2 + 10;
+        const lineH = 14;
+
+        // Left column — Order Info
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#1a3c2e')
+            .text('ORDER INFORMATION', M, metaY);
+
+        const orderDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric'
+        });
+
+        doc.font('Helvetica').fontSize(9).fillColor('#333333')
+            .text(`Order ID    : ${displayOrderId}`, M, metaY + lineH * 1)
+            .text(`Date        : ${orderDate}`, M, metaY + lineH * 2)
+            .text(`Payment     : ${order.paymentMethod}`, M, metaY + lineH * 3)
+            .text(`Status      : ${order.isPaid ? 'Paid' : 'Pending'}`, M, metaY + lineH * 4);
+
+        // Right column — Bill To
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#1a3c2e')
+            .text('BILL TO', midX, metaY);
+
+        doc.font('Helvetica').fontSize(9).fillColor('#333333')
+            .text(order.user.name, midX, metaY + lineH * 1, { width: CW / 2 - 10 })
+            .text(order.user.email || '', midX, metaY + lineH * 2, { width: CW / 2 - 10 })
+            .text(order.shippingAddress.address || '', midX, metaY + lineH * 3, { width: CW / 2 - 10 })
+            .text(`${order.shippingAddress.city} - ${order.shippingAddress.postalCode}`, midX, metaY + lineH * 4, { width: CW / 2 - 10 });
+
+        // ── DIVIDER ────────────────────────────────────────────
+        const divY = metaY + lineH * 6;
+        doc.moveTo(M, divY).lineTo(W - M, divY).lineWidth(0.5).strokeColor('#cccccc').stroke();
+
+        // ── TABLE HEADER ───────────────────────────────────────
+        const tY = divY + 8;
+        const ROW_H = 22;
+
+        const C = {
+            item: { x: M, w: 215 },
+            pack: { x: M + 218, w: 75 },
+            qty: { x: M + 296, w: 35 },
+            price: { x: M + 334, w: 75 },
+            total: { x: M + 412, w: 83 },
+        };
+
+        doc.rect(M, tY, CW, 20).fill('#1a3c2e');
+        doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff');
+        doc.text('ITEM', C.item.x + 4, tY + 5, { width: C.item.w, lineBreak: false });
+        doc.text('PACK', C.pack.x + 4, tY + 5, { width: C.pack.w, lineBreak: false });
+        doc.text('QTY', C.qty.x + 4, tY + 5, { width: C.qty.w, align: 'center', lineBreak: false });
+        doc.text('PRICE', C.price.x + 4, tY + 5, { width: C.price.w, align: 'right', lineBreak: false });
+        doc.text('TOTAL', C.total.x + 4, tY + 5, { width: C.total.w, align: 'right', lineBreak: false });
+
+        // ── TABLE ROWS ─────────────────────────────────────────
+        let ry = tY + 22;
+        order.orderItems.forEach((item, idx) => {
+            doc.rect(M, ry - 2, CW, ROW_H).fill(idx % 2 === 0 ? '#f8f8f8' : '#ffffff');
+
+            const maxLen = 35;
+            const name = item.name.length > maxLen ? item.name.substring(0, maxLen) + '...' : item.name;
+            const lineTotal = (item.price * item.qty).toFixed(2);
+
+            doc.font('Helvetica').fontSize(8.5).fillColor('#333333');
+            doc.text(name, C.item.x + 4, ry + 3, { width: C.item.w - 4, lineBreak: false });
+            doc.text(item.pack || '-', C.pack.x + 4, ry + 3, { width: C.pack.w - 4, lineBreak: false });
+            doc.text(String(item.qty), C.qty.x + 4, ry + 3, { width: C.qty.w - 4, align: 'center', lineBreak: false });
+            doc.text(cur(item.price), C.price.x + 4, ry + 3, { width: C.price.w - 4, align: 'right', lineBreak: false });
+            doc.font('Helvetica-Bold').fillColor('#1a3c2e')
+                .text(cur(lineTotal), C.total.x + 4, ry + 3, { width: C.total.w - 4, align: 'right', lineBreak: false });
+
+            ry += ROW_H;
+        });
+
+        // ── TOTALS ─────────────────────────────────────────────
+        doc.moveTo(M, ry + 4).lineTo(W - M, ry + 4).lineWidth(0.5).strokeColor('#cccccc').stroke();
+
+        let ty2 = ry + 16;
+        const tLX = W - M - 160;
+        const tVX = W - M - 5;
+        const addRow = (lbl, val, bold) => {
+            doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 9)
+                .fillColor('#444444').text(lbl, tLX, ty2, { lineBreak: false });
+            doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(bold ? '#1a3c2e' : '#444444')
+                .text(val, tLX, ty2, { width: tVX - tLX, align: 'right', lineBreak: false });
+            ty2 += bold ? 22 : 17;
+        };
+
+        addRow('Subtotal:', cur(order.itemsPrice || order.totalPrice));
+        addRow('Shipping:', cur(order.shippingPrice || 0));
+        if ((order.discountPrice || 0) > 0) addRow('Discount:', `- ${cur(order.discountPrice)}`);
+        doc.moveTo(tLX, ty2 - 4).lineTo(W - M, ty2 - 4).lineWidth(0.8).strokeColor('#999999').stroke();
+        addRow('GRAND TOTAL:', cur(order.totalPrice), true);
+
+        // ── FOOTER ─────────────────────────────────────────────
+        doc.rect(0, 802, W, 40).fill('#f0f0f0');
+        doc.font('Helvetica').fontSize(8).fillColor('#888888')
+            .text('Thank you for shopping with Nature Way of Life!', M, 811, { align: 'center', width: CW })
+            .text('Support: support@naturebridge.store', M, 824, { align: 'center', width: CW });
+
+        doc.end();
+    } catch (err) {
+        console.error('Invoice generation error:', err);
+        if (!res.headersSent) res.status(500).json({ msg: 'Failed to generate invoice' });
     }
-
-    if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
-        return res.status(401).json({ msg: 'Not authorized' });
-    }
-
-    const doc = new PDFDocument({ margin: 50 });
-
-    const filename = `invoice-${order._id}.pdf`;
-    res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-type', 'application/pdf');
-
-    doc.pipe(res);
-
-    // Header
-    doc.fontSize(20).text('Nature E-Commerce Invoice', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Invoice Number: ${order._id}`);
-    doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`);
-    doc.text(`Status: ${order.isPaid ? 'Paid' : 'Unpaid'}`);
-    doc.moveDown();
-
-    // Customer Info
-    doc.text(`Bill To: ${order.user.name}`);
-    doc.text(`Address: ${order.shippingAddress.address}, ${order.shippingAddress.city}, ${order.shippingAddress.postalCode}`);
-    doc.moveDown();
-
-    // Table Header
-    doc.text('Item', 50, 250);
-    doc.text('Quantity', 300, 250);
-    doc.text('Price', 400, 250, { align: 'right' });
-    doc.moveTo(50, 265).lineTo(550, 265).stroke();
-
-    // Items
-    let y = 280;
-    order.orderItems.forEach(item => {
-        doc.text(item.name, 50, y);
-        doc.text(item.qty.toString(), 300, y);
-        doc.text(item.price.toFixed(2), 400, y, { align: 'right' });
-        y += 20;
-    });
-
-    doc.moveTo(50, y + 10).lineTo(550, y + 10).stroke();
-
-    // Total
-    doc.fontSize(14).text(`Total: ${order.totalPrice.toFixed(2)}`, 350, y + 30, { align: 'right' });
-
-    doc.end();
 };
+
