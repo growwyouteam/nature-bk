@@ -140,7 +140,128 @@ exports.addOrderItems = async (req, res) => {
             await Notification.insertMany(notifications);
         }
 
+        // Setup Resend and Send Confirmation Emails
+        const { Resend } = require('resend');
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const adminEmail = 'sharmaji980780@gmail.com';
 
+        try {
+            const htmlTemplate = `
+            <div style="background-color: #f7f9fa; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-height: 100vh;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                    <!-- Header -->
+                    <tr>
+                        <td bgcolor="#1E4620" style="padding: 30px; text-align: center;">
+                            <h2 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px;">NatureBridge</h2>
+                            <p style="color: #a3c2a8; margin: 10px 0 0 0; font-size: 15px;">Order Successfully Placed</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 35px 30px;">
+                            <p style="font-size: 16px; color: #333333; line-height: 1.5; margin: 0 0 20px 0;">
+                                Hi there, <br><br>
+                                Thank you for shopping with NatureBridge! Your order <strong>${createdOrder.orderId}</strong> is currently being processed. Here is a summary of your recent purchase:
+                            </p>
+                            
+                            <!-- Items Table -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px; border-bottom: 2px solid #f0f0f0;">
+                                <tr>
+                                    <th align="left" style="padding-bottom: 15px; color: #666666; font-size: 13px; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid #eeeeee;">Item</th>
+                                    <th align="right" style="padding-bottom: 15px; color: #666666; font-size: 13px; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid #eeeeee;">Price</th>
+                                </tr>
+                                ${orderItems.map(item => `
+                                <tr>
+                                    <td style="padding: 15px 0; border-bottom: 1px solid #f9f9f9;">
+                                        <div style="font-size: 15px; color: #111111; font-weight: 500;">${item.name}</div>
+                                        <div style="font-size: 13px; color: #888888; margin-top: 4px;">Qty: ${item.qty}</div>
+                                    </td>
+                                    <td align="right" valign="top" style="padding: 15px 0; border-bottom: 1px solid #f9f9f9; font-size: 15px; color: #111111; font-weight: 500;">
+                                        ₹${Number(item.price).toFixed(2)}
+                                    </td>
+                                </tr>
+                                `).join('')}
+                            </table>
+                            
+                            <!-- Totals Table -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 30px; background-color: #fcfcfc; border-radius: 8px; border: 1px solid #f0f0f0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding-bottom: 10px; color: #555555; font-size: 14px;">Items Price:</td>
+                                                <td align="right" style="padding-bottom: 10px; color: #111111; font-size: 14px; font-weight: 500;">₹${Number(itemsPrice).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding-bottom: 10px; color: #555555; font-size: 14px;">Tax:</td>
+                                                <td align="right" style="padding-bottom: 10px; color: #111111; font-size: 14px; font-weight: 500;">₹${Number(taxPrice).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding-bottom: 15px; color: #555555; font-size: 14px;">Shipping:</td>
+                                                <td align="right" style="padding-bottom: 15px; color: #111111; font-size: 14px; font-weight: 500;">₹${Number(shippingPrice).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding-top: 15px; border-top: 1px solid #e0e0e0; color: #1E4620; font-size: 18px; font-weight: 700;">Total Amount:</td>
+                                                <td align="right" style="padding-top: 15px; border-top: 1px solid #e0e0e0; color: #1E4620; font-size: 18px; font-weight: 700;">₹${Number(totalPrice).toFixed(2)}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Shipping Details -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border-top: 1px solid #eeeeee; padding-top: 25px;">
+                                <tr>
+                                    <td>
+                                        <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #333333;">Shipping Details</h3>
+                                        <p style="margin: 0; color: #666666; font-size: 14px; line-height: 1.6;">
+                                            ${shippingAddress.address}<br>
+                                            ${shippingAddress.city} - ${shippingAddress.postalCode}<br>
+                                            ${shippingAddress.country || 'India'}<br>
+                                            <strong style="color: #333333;">Payment Method:</strong> ${paymentMethod}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td bgcolor="#f8f9fa" style="padding: 20px 30px; text-align: center; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; color: #999999; font-size: 13px;">
+                                © ${new Date().getFullYear()} Nature E-Commerce. All rights reserved.
+                            </p>
+                            <p style="margin: 5px 0 0 0; color: #bbbbbb; font-size: 12px;">
+                                This is an automated email. Please do not reply directly to this message.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            `;
+
+            if (currentUser && currentUser.email) {
+                await resend.emails.send({
+                    from: `Nature Store <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+                    to: currentUser.email,
+                    subject: `Order Confirmed - ${createdOrder.orderId}`,
+                    html: htmlTemplate
+                });
+            }
+
+            await resend.emails.send({
+                from: `Nature Store <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+                to: adminEmail,
+                subject: `New Order Alert - ${createdOrder.orderId}`,
+                html: htmlTemplate
+            });
+
+        } catch (emailError) {
+            console.error('Error sending order emails via Resend:', emailError);
+        }
 
         res.status(201).json(createdOrder);
     }
