@@ -17,6 +17,8 @@ const orderSchema = mongoose.Schema({
             qty: { type: Number, required: true },
             image: { type: String, required: true },
             price: { type: Number, required: true },
+            gstPercent: { type: Number, default: 0 },
+            gstAmount: { type: Number, default: 0 },
             product: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: 'Product'

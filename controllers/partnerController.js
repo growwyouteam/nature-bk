@@ -45,6 +45,36 @@ const registerPartner = async (req, res) => {
             commissionRate: 10 // Default 10%, admin can change later
         });
 
+        // Send Welcome Email
+        try {
+            const { Resend } = require('resend');
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            
+            await resend.emails.send({
+                from: `Nature Store <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+                to: [partner.email],
+                subject: `Welcome to Nature E-Commerce Partner Program, ${partner.name}!`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; text-align: left;">
+                        <h2 style="color: #2e7d32;">Welcome to Nature, ${partner.name}!</h2>
+                        <p>Your Partner profile has been successfully created. Start referring and earning!</p>
+                        <div style="background-color: #f7f9f7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h3 style="margin-top: 0; color: #2e7d32;">Your Login Credentials</h3>
+                            <p style="margin: 5px 0;"><strong>Email ID:</strong> ${partner.email}</p>
+                            <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+                            <p style="margin: 5px 0;"><strong>Referral Code:</strong> <span style="background-color: #e8f5e9; padding: 2px 5px; border-radius: 4px;">${referralCode}</span></p>
+                        </div>
+                        <p style="font-size: 14px;">Please keep these credentials safe. You can log in at any time to check your Dashboard, Referral Code, and Earnings.</p>
+                        <br/>
+                        <p style="color: #777; font-size: 12px;">This is an automated message from Nature E-Commerce.</p>
+                    </div>
+                `
+            });
+            console.log('Partner Welcome email sent successfully to:', partner.email);
+        } catch (emailErr) {
+            console.log("Partner welcome email failed: ", emailErr.message);
+        }
+
         res.status(201).json({
             _id: partner._id,
             name: partner.name,

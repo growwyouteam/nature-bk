@@ -68,7 +68,7 @@ exports.getProductReviews = async (req, res) => {
 // @access  Public
 exports.getProducts = async (req, res) => {
     try {
-        const products = await Product.find({});
+        const products = await Product.find({}).populate('category', 'name slug');
         res.json(products);
     } catch (err) {
         console.error(err);

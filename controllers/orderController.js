@@ -271,19 +271,34 @@ exports.addOrderItems = async (req, res) => {
 // @route   GET /api/orders/:id
 // @access  Private
 exports.getOrderById = async (req, res) => {
-    // Check if the id is a standard MongoDB ObjectId or our custom orderId (OD...)
-    const isObjectId = req.params.id.match(/^[0-9a-fA-F]{24}$/);
-    const query = isObjectId ? { _id: req.params.id } : { orderId: req.params.id };
+    try {
+        // Check if the id is a standard MongoDB ObjectId or our custom orderId (OD...)
+        const isObjectId = req.params.id.match(/^[0-9a-fA-F]{24}$/);
+        const query = isObjectId ? { _id: req.params.id } : { orderId: req.params.id };
 
-    const order = await Order.findOne(query).populate('user', 'name email');
+        const order = await Order.findOne(query).populate('user', 'name email phone');
 
-    if (order) {
-        if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+        if (!order) {
+            return res.status(404).json({ msg: 'Order not found' });
+        }
+
+        // Check admin — from JWT role (new tokens) OR from DB (old tokens)
+        let isAdmin = req.user.role === 'admin';
+        if (!isAdmin) {
+            const requestingUser = await User.findById(req.user.id).select('role');
+            isAdmin = requestingUser?.role === 'admin';
+        }
+
+        const isOwner = order.user && order.user._id.toString() === req.user.id;
+
+        if (!isAdmin && !isOwner) {
             return res.status(401).json({ msg: 'Not authorized' });
         }
+
         res.json(order);
-    } else {
-        res.status(404).json({ msg: 'Order not found' });
+    } catch (error) {
+        console.error('Error in getOrderById:', error);
+        res.status(500).json({ msg: 'Server error' });
     }
 };
 
@@ -349,13 +364,23 @@ exports.updateOrderToDelivered = async (req, res) => {
 // @route   GET /api/orders/:id/invoice
 // @access  Private
 exports.getOrderInvoice = async (req, res) => {
-    const order = await Order.findById(req.params.id).populate('user', 'name email');
+    try {
+    const order = await Order.findById(req.params.id).populate('user', 'name email phone');
 
     if (!order) {
         return res.status(404).json({ msg: 'Order not found' });
     }
 
-    if (order.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    // Check admin — from JWT role (new tokens) OR from DB (old tokens)
+    let isAdmin = req.user.role === 'admin';
+    if (!isAdmin) {
+        const requestingUser = await User.findById(req.user.id).select('role');
+        isAdmin = requestingUser?.role === 'admin';
+    }
+
+    const isOwner = order.user && order.user._id.toString() === req.user.id;
+
+    if (!isAdmin && !isOwner) {
         return res.status(401).json({ msg: 'Not authorized' });
     }
 
@@ -382,23 +407,44 @@ exports.getOrderInvoice = async (req, res) => {
 
     // Table Header
     doc.text('Item', 50, 250);
-    doc.text('Quantity', 300, 250);
-    doc.text('Price', 400, 250, { align: 'right' });
+    doc.text('Qty', 260, 250);
+    doc.text('GST %', 310, 250);
+    doc.text('Base Price', 380, 250);
+    doc.text('Total (Inc. GST)', 450, 250);
     doc.moveTo(50, 265).lineTo(550, 265).stroke();
 
     // Items
     let y = 280;
+    let sumBasePrice = 0;
     order.orderItems.forEach(item => {
-        doc.text(item.name, 50, y);
-        doc.text(item.qty.toString(), 300, y);
-        doc.text(item.price.toFixed(2), 400, y, { align: 'right' });
-        y += 20;
+        const gstPrcnt = item.gstPercent || 0;
+        const inclusivePrice = item.price;
+        const basePrice = inclusivePrice / (1 + (gstPrcnt / 100));
+        const totalInc = inclusivePrice * item.qty;
+        const totalBase = basePrice * item.qty;
+        sumBasePrice += totalBase;
+
+        doc.text(item.name, 50, y, { width: 200 });
+        doc.text(item.qty.toString(), 260, y);
+        doc.text(`${gstPrcnt}%`, 310, y);
+        doc.text(`Rs. ${basePrice.toFixed(2)}`, 380, y);
+        doc.text(`Rs. ${totalInc.toFixed(2)}`, 450, y);
+        y += 40;
     });
 
     doc.moveTo(50, y + 10).lineTo(550, y + 10).stroke();
 
     // Total
-    doc.fontSize(14).text(`Total: ${order.totalPrice.toFixed(2)}`, 350, y + 30, { align: 'right' });
+    const taxPrice = order.taxPrice || (order.totalPrice - sumBasePrice);
+    doc.fontSize(12).text(`Subtotal (Excl. GST): Rs. ${sumBasePrice.toFixed(2)}`, 320, y + 30);
+    doc.text(`Total GST: Rs. ${taxPrice.toFixed(2)}`, 320, y + 50);
+    doc.fontSize(14).text(`Grand Total: Rs. ${order.totalPrice.toFixed(2)}`, 320, y + 80);
 
     doc.end();
+    } catch (error) {
+        console.error('Error generating invoice:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ msg: 'Failed to generate invoice' });
+        }
+    }
 };
