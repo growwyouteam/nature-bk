@@ -26,6 +26,10 @@ const courseSchema = new mongoose.Schema({
     mrp: {
         type: Number
     },
+    gstPercent: {
+        type: Number,
+        default: 0
+    },
     duration: {
         type: String // e.g., "4 weeks", "10 hours"
     },

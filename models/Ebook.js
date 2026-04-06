@@ -34,6 +34,10 @@ const ebookSchema = new mongoose.Schema({
     mrp: {
         type: Number
     },
+    gstPercent: {
+        type: Number,
+        default: 0
+    },
     pages: {
         type: Number
     },

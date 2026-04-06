@@ -75,6 +75,24 @@ const registerPartner = async (req, res) => {
             console.log("Partner welcome email failed: ", emailErr.message);
         }
 
+        // Create Notification for Admins
+        try {
+            const Notification = require('../models/Notification');
+            const admins = await User.find({ role: 'admin' });
+            if (admins.length > 0) {
+                const notifications = admins.map(admin => ({
+                    recipient: admin._id,
+                    type: 'system',
+                    title: 'New Partner Registration',
+                    message: `Partner registration: ${partner.name} (${partner.email})`,
+                    relatedId: partner._id
+                }));
+                await Notification.insertMany(notifications);
+            }
+        } catch (notifErr) {
+            console.error('Partner registration notification failed:', notifErr.message);
+        }
+
         res.status(201).json({
             _id: partner._id,
             name: partner.name,

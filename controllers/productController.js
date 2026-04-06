@@ -84,9 +84,9 @@ exports.getProductById = async (req, res) => {
         // Try finding by ID first, if not valid ID, try slug
         let product;
         if (req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-            product = await Product.findById(req.params.id);
+            product = await Product.findById(req.params.id).populate('category', 'name');
         } else {
-            product = await Product.findOne({ slug: req.params.id });
+            product = await Product.findOne({ slug: req.params.id }).populate('category', 'name');
         }
 
         if (!product) {

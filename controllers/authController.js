@@ -58,6 +58,24 @@ exports.registerUser = async (req, res) => {
             console.log("Welcome email failed: ", emailErr.message);
         }
 
+        // Create Notification for Admins
+        try {
+            const Notification = require('../models/Notification');
+            const admins = await User.find({ role: 'admin' });
+            if (admins.length > 0) {
+                const notifications = admins.map(admin => ({
+                    recipient: admin._id,
+                    type: 'system',
+                    title: 'New User Registered',
+                    message: `${user.name} (${user.email}) just created an account.`,
+                    relatedId: user._id
+                }));
+                await Notification.insertMany(notifications);
+            }
+        } catch (notifErr) {
+            console.error('Registration notification failed:', notifErr.message);
+        }
+
         const payload = {
             user: {
                 id: user.id,
