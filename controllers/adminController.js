@@ -227,6 +227,49 @@ exports.updatePartnerCommissionRate = async (req, res) => {
     }
 };
 
+// @desc    Verify Admin Password
+// @route   POST /api/admin/verify-password
+// @access  Private/Admin
+exports.verifyPassword = async (req, res) => {
+    try {
+        const { password } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ msg: 'Admin not found' });
+        }
+
+        const isMatch = await user.matchPassword(password);
+        if (!isMatch) {
+            return res.status(400).json({ msg: 'Invalid password' });
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// @desc    Delete Partner
+// @route   DELETE /api/admin/partners/:id
+// @access  Private/Admin
+exports.deletePartner = async (req, res) => {
+    try {
+        const partner = await User.findById(req.params.id);
+
+        if (!partner || !partner.isPartner) {
+            return res.status(404).json({ msg: 'Partner not found' });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ msg: 'Partner deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+};
+
 // @desc    Get All Commissions
 // @route   GET /api/admin/commissions
 // @access  Private/Admin
@@ -365,6 +408,67 @@ exports.markCommissionPaid = async (req, res) => {
         const partner = await User.findById(commission.partner);
         partner.paidCommission += commission.commissionAmount;
         await partner.save();
+
+        res.json(commission);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server Error');
+    }
+};
+
+// @desc    Update Commission Status Manually
+// @route   PUT /api/admin/commissions/:id/status-manual
+// @access  Private/Admin
+exports.updateCommissionStatusManual = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const commission = await Commission.findById(req.params.id);
+
+        if (!commission) {
+            return res.status(404).json({ msg: 'Commission not found' });
+        }
+
+        const oldStatus = commission.status;
+        const newStatus = status;
+
+        if (oldStatus === newStatus) {
+            return res.json(commission);
+        }
+
+        const partner = await User.findById(commission.partner);
+        const amount = commission.commissionAmount;
+
+        // 1. Remove side effects of OLD status
+        if (oldStatus === 'pending') {
+            partner.pendingCommission -= amount;
+            partner.totalEarnings -= amount;
+        } else if (oldStatus === 'approved') {
+            partner.totalEarnings -= amount;
+        } else if (oldStatus === 'paid') {
+            partner.paidCommission -= amount;
+            partner.totalEarnings -= amount;
+        }
+        // rejected has no effect on totalEarnings/pending/paid balances in this logic
+
+        // 2. Apply side effects of NEW status
+        if (newStatus === 'pending') {
+            partner.pendingCommission += amount;
+            partner.totalEarnings += amount;
+        } else if (newStatus === 'approved') {
+            partner.totalEarnings += amount;
+            commission.approvedBy = req.user.id;
+            commission.approvedAt = Date.now();
+        } else if (newStatus === 'paid') {
+            partner.paidCommission += amount;
+            partner.totalEarnings += amount;
+            commission.paidAt = Date.now();
+        } else if (newStatus === 'rejected') {
+            // rejected removes from all totals (already subtracted above)
+        }
+
+        commission.status = newStatus;
+        await partner.save();
+        await commission.save();
 
         res.json(commission);
     } catch (err) {
