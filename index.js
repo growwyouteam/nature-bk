@@ -38,6 +38,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/pincodes', require('./routes/pincodes'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/franchise', require('./routes/franchise'));
 
 // Health Check
 app.get('/', (req, res) => {
