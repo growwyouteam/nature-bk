@@ -81,13 +81,13 @@ exports.addOrderItems = async (req, res) => {
         for (const item of orderItems) {
             if (item.itemType === 'ebook' && item.ebook) {
                 // Add e-book to user's purchased list if not already there
-                if (!currentUser.purchasedEbooks.includes(item.ebook)) {
+                if (!currentUser.purchasedEbooks.some(id => id.toString() === item.ebook.toString())) {
                     currentUser.purchasedEbooks.push(item.ebook);
                     hasDigitalContent = true;
                 }
             } else if (item.itemType === 'course' && item.course) {
                 // Add course to user's purchased list if not already there
-                if (!currentUser.purchasedCourses.includes(item.course)) {
+                if (!currentUser.purchasedCourses.some(id => id.toString() === item.course.toString())) {
                     currentUser.purchasedCourses.push(item.course);
                     hasDigitalContent = true;
                 }

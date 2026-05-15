@@ -64,6 +64,38 @@ exports.verifyPayment = async (req, res) => {
                     email_address: req.user.email
                 };
                 await order.save();
+
+                // Grant Digital Content Access (E-books/Courses) upon payment
+                try {
+                    const User = require('../models/User');
+                    const user = await User.findById(order.user);
+                    
+                    if (user) {
+                        let hasNewDigitalContent = false;
+                        
+                        for (const item of order.orderItems) {
+                            if (item.itemType === 'ebook' && item.ebook) {
+                                if (!user.purchasedEbooks.some(id => id.toString() === item.ebook.toString())) {
+                                    user.purchasedEbooks.push(item.ebook);
+                                    hasNewDigitalContent = true;
+                                }
+                            } else if (item.itemType === 'course' && item.course) {
+                                if (!user.purchasedCourses.some(id => id.toString() === item.course.toString())) {
+                                    user.purchasedCourses.push(item.course);
+                                    hasNewDigitalContent = true;
+                                }
+                            }
+                        }
+                        
+                        if (hasNewDigitalContent) {
+                            await user.save();
+                            console.log(`Digital content granted to user ${user.email} after payment.`);
+                        }
+                    }
+                } catch (grantErr) {
+                    console.error('Error granting digital content after payment:', grantErr);
+                }
+
                 res.json({ success: true, message: "Payment Verified", orderId: order._id });
             } else {
                 // Even if payment verified, if local order not found, it's an issue but payment is done.
