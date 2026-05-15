@@ -47,18 +47,18 @@ exports.downloadEbook = async (req, res) => {
         const user = await User.findById(req.user.id);
         const ebookId = req.params.id;
 
-        // Check if user has purchased this e-book
-        const hasPurchased = user.purchasedEbooks.includes(ebookId);
-
-        if (!hasPurchased) {
-            return res.status(403).json({ msg: 'You have not purchased this e-book' });
-        }
-
         // Get e-book details
         const ebook = await Ebook.findById(ebookId);
 
         if (!ebook) {
             return res.status(404).json({ msg: 'E-book not found' });
+        }
+
+        // Check if user has purchased this e-book (skip if e-book is free)
+        const hasPurchased = user.purchasedEbooks.includes(ebookId);
+
+        if (!hasPurchased && !ebook.isFree) {
+            return res.status(403).json({ msg: 'You have not purchased this e-book' });
         }
 
         if (!ebook.pdfFile) {

@@ -17,9 +17,31 @@ app.use(cors({
 }));
 
 // Database Connection
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.error('MongoDB Error:', err));
+const connectDB = async () => {
+    if (mongoose.connection.readyState >= 1) return;
+
+    try {
+        await mongoose.connect(process.env.MONGO_URI, {
+            serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 10s
+            socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+            family: 4, // Force IPv4 to avoid DNS/IPv6 resolution issues
+        });
+        console.log('MongoDB Connected');
+    } catch (err) {
+        console.error('MongoDB Connection Error:', err);
+    }
+};
+
+// Connect for local development
+if (process.env.NODE_ENV !== 'production') {
+    connectDB();
+}
+
+// Middleware to ensure DB connection for every request in production/serverless
+app.use(async (req, res, next) => {
+    await connectDB();
+    next();
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -31,6 +53,7 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/offers', require('./routes/offers'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/upload-pdf', require('./routes/uploadPdf'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/purchases', require('./routes/purchases'));

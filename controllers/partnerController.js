@@ -45,11 +45,13 @@ const registerPartner = async (req, res) => {
             commissionRate: 10 // Default 10%, admin can change later
         });
 
-        // Send Welcome Email
+        // Send Confirmation Emails (Partner & Admin)
         try {
             const { Resend } = require('resend');
             const resend = new Resend(process.env.RESEND_API_KEY);
+            const adminEmail = 'sharmaji980780@gmail.com'; // Consistent with orderController
             
+            // 1. Email to Partner
             await resend.emails.send({
                 from: `Nature Store <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
                 to: [partner.email],
@@ -70,12 +72,37 @@ const registerPartner = async (req, res) => {
                     </div>
                 `
             });
-            console.log('Partner Welcome email sent successfully to:', partner.email);
+
+            // 2. Email to Admin
+            await resend.emails.send({
+                from: `Nature Store <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
+                to: [adminEmail],
+                subject: `New Partner Registered: ${partner.name}`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; text-align: left;">
+                        <h2 style="color: #2e7d32;">New Partner Registration Alert</h2>
+                        <p>A new partner has just registered on the Nature Store website.</p>
+                        <div style="background-color: #f7f9f7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h3 style="margin-top: 0; color: #2e7d32;">Partner Details</h3>
+                            <p style="margin: 5px 0;"><strong>Name:</strong> ${partner.name}</p>
+                            <p style="margin: 5px 0;"><strong>Email:</strong> ${partner.email}</p>
+                            <p style="margin: 5px 0;"><strong>Phone:</strong> ${partner.phone || 'N/A'}</p>
+                            <p style="margin: 5px 0;"><strong>Referral Code:</strong> ${referralCode}</p>
+                            <p style="margin: 5px 0;"><strong>Registration Date:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+                        <p style="font-size: 14px;">You can view and manage this partner in the Admin Panel.</p>
+                        <br/>
+                        <p style="color: #777; font-size: 12px;">This is an automated notification from Nature E-Commerce System.</p>
+                    </div>
+                `
+            });
+
+            console.log('Partner and Admin registration emails sent successfully.');
         } catch (emailErr) {
-            console.log("Partner welcome email failed: ", emailErr.message);
+            console.log("Partner registration emails failed: ", emailErr.message);
         }
 
-        // Create Notification for Admins
+        // Create Notification for Admins in Database
         try {
             const Notification = require('../models/Notification');
             const admins = await User.find({ role: 'admin' });
